@@ -1,34 +1,3 @@
-# # ===============================================================
-# # 🎨 COLOR–PIGMENT STREAMLIT APP (FORWARD + INVERSE + ΔE CHECK)
-# # ===============================================================
-
-# import streamlit as st
-# import pandas as pd
-# import numpy as np
-# import joblib, os
-
-# # Handle numpy.asscalar deprecation (for colormath compatibility)
-# if not hasattr(np, "asscalar"):
-#     np.asscalar = lambda x: np.asarray(x).item()
-
-
-# # Try importing advanced color difference function
-# try:
-#     from colormath.color_objects import LabColor
-#     from colormath.color_diff import delta_e_cie2000
-#     HAVE_CIE2000 = True
-# except Exception:
-#     HAVE_CIE2000 = False
-
-# # ===============================================================
-# # 1️⃣ PAGE CONFIGURATION
-# # ===============================================================
-
-# st.set_page_config(page_title="🎨 Color–Pigment Predictor", layout="wide", page_icon="🎨")
-# st.title("🎨 Bidirectional Color–Pigment Prediction System")
-# st.markdown("Use trained models to convert between **Pigment → LAB** and **LAB → Pigment + LAB + ΔE**.")
-
-
 # ===============================================================
 # 🎨 COLOR–PIGMENT STREAMLIT APP (FORWARD + INVERSE + ΔE CHECK)
 # ===============================================================
@@ -36,7 +5,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib, os
+import joblib, os, base64
 
 # Handle numpy.asscalar deprecation (for colormath compatibility)
 if not hasattr(np, "asscalar"):
@@ -63,8 +32,9 @@ st.markdown(
     <style>
         .logo-container {
             background-color: #000000;
-            padding: 20px 0;
+            padding: 25px 0;
             text-align: center;
+            width: 100%;
         }
         .logo-container img {
             width: 220px;
@@ -74,19 +44,27 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# --- Convert image to base64 string ---
+def get_base64(logo_path):
+    with open(logo_path, "rb") as img:
+        return base64.b64encode(img.read()).decode()
+
 # --- Display the logo ---
-logo_path = "logo_off.png"  # make sure this file is in the same folder as app.py
+logo_path = "logo_off.png"
+
 if os.path.exists(logo_path):
+    logo_base64 = get_base64(logo_path)
     st.markdown(
         f"""
         <div class="logo-container">
-            <img src="data:image/png;base64,{open(logo_path, "rb").read().encode('base64').decode()}">
+            <img src="data:image/png;base64,{logo_base64}">
         </div>
         """,
         unsafe_allow_html=True
     )
 else:
     st.warning("⚠️ Logo file not found! Please add 'logo_off.png' in the same folder as app.py.")
+
 
 # --- Page title & intro ---
 st.title("🎨 Bidirectional Color–Pigment Prediction System")
@@ -103,10 +81,10 @@ if not (os.path.exists(FORWARD_MODEL_PATH) and os.path.exists(INVERSE_MODEL_PATH
     st.error("❌ Model files not found! Ensure both .joblib files are in the same folder as app.py.")
     st.stop()
 
-
 forward_model = joblib.load(FORWARD_MODEL_PATH)
 inverse_model = joblib.load(INVERSE_MODEL_PATH)
 st.success("✅ Models loaded successfully!")
+
 
 # ===============================================================
 # 3️⃣ DEFINE COLUMNS
@@ -117,11 +95,13 @@ pigment_columns = [
 ]
 lab_cols = ["L", "a", "B"]
 
+
 # ===============================================================
 # 4️⃣ SIDEBAR MODE
 # ===============================================================
 st.sidebar.header("⚙️ Mode Selection")
 mode = st.sidebar.radio("Choose prediction mode:", ["Forward: Pigments → LAB", "Inverse: LAB → Pigments + LAB + ΔE"])
+
 
 # ===============================================================
 # 5️⃣ FORWARD MODEL MODE
@@ -146,6 +126,7 @@ if mode == "Forward: Pigments → LAB":
         st.markdown("#### 🎨 Predicted LAB Values")
         lab_df = pd.DataFrame([prediction], columns=lab_cols)
         st.dataframe(lab_df.style.format("{:.3f}"), use_container_width=True)
+
 
 # ===============================================================
 # 6️⃣ INVERSE MODEL MODE + ΔE CALCULATION
@@ -172,16 +153,14 @@ elif mode == "Inverse: LAB → Pigments + LAB + ΔE":
         reconstructed_lab = forward_model.predict(pigment_df)
         reconstructed_lab_df = pd.DataFrame(reconstructed_lab, columns=lab_cols)
 
-        # Step 3: Compute ΔE (CIEDE2000 or Euclidean)
+        # Step 3: Compute ΔE
         target_LAB = lab_input_df.iloc[0].values
         recon_LAB = reconstructed_lab_df.iloc[0].values
 
         def safe_delta_e_cie2000(c1, c2):
-            """Wrapper to handle numpy.asscalar removal."""
             try:
-                val = delta_e_cie2000(c1, c2)
-                return np.array(val).item()
-            except Exception:
+                return float(delta_e_cie2000(c1, c2))
+            except:
                 return float(np.linalg.norm(np.array([
                     c1.lab_l - c2.lab_l,
                     c1.lab_a - c2.lab_a,
@@ -193,14 +172,14 @@ elif mode == "Inverse: LAB → Pigments + LAB + ΔE":
             color2 = LabColor(*recon_LAB)
             delta_e = safe_delta_e_cie2000(color1, color2)
         else:
-            delta_e = np.linalg.norm(target_LAB - recon_LAB)  # fallback ΔE76
+            delta_e = np.linalg.norm(target_LAB - recon_LAB)
 
-        # Step 4: Calculate component-wise difference
+        # Step 4: ΔLAB + ΔE table
         delta_components = np.abs(reconstructed_lab_df.values - lab_input_df.values)
         delta_df = pd.DataFrame(delta_components, columns=["ΔL", "Δa", "ΔB"])
         delta_df["ΔE"] = [delta_e]
 
-        # Display all results
+        # Display results
         st.markdown("#### 🎨 Predicted Pigment Composition")
         st.dataframe(pigment_df.style.format("{:.3f}"), use_container_width=True)
 
@@ -210,16 +189,18 @@ elif mode == "Inverse: LAB → Pigments + LAB + ΔE":
         st.markdown("#### 📏 LAB Difference + ΔE")
         st.dataframe(delta_df.style.format("{:.3f}"), use_container_width=True)
 
-        # Interpretation
+        # ΔE Interpretation
         if delta_e < 1:
-            note = "🟢 Excellent color match (ΔE < 1 — visually identical)."
+            note = "🟢 Excellent color match (ΔE < 1 — visually identical)"
         elif delta_e < 3:
-            note = "🟡 Good match (ΔE < 3 — small visible difference)."
+            note = "🟡 Good match (ΔE < 3 — small visible difference)"
         elif delta_e < 5:
-            note = "🟠 Acceptable (ΔE < 5 — noticeable but acceptable)."
+            note = "🟠 Acceptable (ΔE < 5 — noticeable but OK)"
         else:
-            note = "🔴 Large difference (ΔE ≥ 5 — visually distinct)."
+            note = "🔴 Large difference (ΔE ≥ 5 — visually distinct)"
+
         st.markdown(f"**Color difference interpretation:** {note}")
+
 
 # ===============================================================
 # 7️⃣ SIDEBAR INFO
