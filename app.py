@@ -31,9 +31,10 @@ def get_base64(path):
     with open(path, "rb") as img:
         return base64.b64encode(img.read()).decode()
 
-logo_file = "logo_off.png"   # << YOUR BLACK LOGO
+logo_file = "logo_off.png"   # << USE THIS LOGO
 
-# CSS to keep title on one line + move logo to right
+
+# --- CSS: title stays in one line + logo on right ---
 st.markdown("""
 <style>
 .header-clean {
@@ -50,13 +51,14 @@ st.markdown("""
     white-space: nowrap;
 }
 .header-clean img {
-    width: 150px;
+    width: 140px;
     height: auto;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# Header layout
+
+# --- Header layout ---
 if os.path.exists(logo_file):
     logo_base64 = get_base64(logo_file)
     st.markdown(
@@ -74,9 +76,11 @@ else:
 
 st.markdown("Use trained models to convert between **Pigment → LAB** and **LAB → Pigment + LAB + ΔE**.")
 
+
 # ===============================================================
 # 2️⃣ LOAD MODELS
 # ===============================================================
+
 FORWARD_MODEL_PATH = "ForwardModel_RF.joblib"
 INVERSE_MODEL_PATH = "InverseModel_RF.joblib"
 
@@ -88,24 +92,30 @@ forward_model = joblib.load(FORWARD_MODEL_PATH)
 inverse_model = joblib.load(INVERSE_MODEL_PATH)
 st.success("✅ Models loaded successfully!")
 
+
 # ===============================================================
 # 3️⃣ DEFINE COLUMNS
 # ===============================================================
+
 pigment_columns = [
     "Base_P","Base_C","Base_D","Base_M","Black","Brown","Red (IOR)","IOY",
     "Light Yellow","Blue","Green","Red","Yellow","Orange","Violet","Maroon"
 ]
 lab_cols = ["L", "a", "B"]
 
+
 # ===============================================================
 # 4️⃣ SIDEBAR
 # ===============================================================
+
 st.sidebar.header("⚙️ Mode Selection")
 mode = st.sidebar.radio("Choose prediction mode:", ["Forward: Pigments → LAB", "Inverse: LAB → Pigments + LAB + ΔE"])
+
 
 # ===============================================================
 # 5️⃣ FORWARD MODEL
 # ===============================================================
+
 if mode == "Forward: Pigments → LAB":
     st.subheader("🎯 Forward Model — Predict LAB from Pigments")
     st.markdown("##### Enter Pigment Composition (phr or %)")
@@ -127,9 +137,11 @@ if mode == "Forward: Pigments → LAB":
         lab_df = pd.DataFrame([prediction], columns=lab_cols)
         st.dataframe(lab_df.style.format("{:.3f}"), use_container_width=True)
 
+
 # ===============================================================
 # 6️⃣ INVERSE MODEL
 # ===============================================================
+
 elif mode == "Inverse: LAB → Pigments + LAB + ΔE":
     st.subheader("🎯 Inverse Model — Predict Pigments from LAB and Validate via Forward Model")
 
@@ -149,26 +161,17 @@ elif mode == "Inverse: LAB → Pigments + LAB + ΔE":
         reconstructed_lab = forward_model.predict(pigment_df)
         reconstructed_lab_df = pd.DataFrame(reconstructed_lab, columns=lab_cols)
 
-        target_LAB = lab_input_df.iloc[0].values
-        recon_LAB = reconstructed_lab_df.iloc[0].values
+        target = lab_input_df.iloc[0].values
+        recon  = reconstructed_lab_df.iloc[0].values
 
-        def safe_delta_e_cie2000(c1, c2):
-            try:
-                return float(delta_e_cie2000(c1, c2))
-            except:
-                return float(np.linalg.norm(np.array([
-                    c1.lab_l - c2.lab_l,
-                    c1.lab_a - c2.lab_a,
-                    c1.lab_b - c2.lab_b
-                ])))
-
-        if HAVE_CIE2000:
-            delta_e = safe_delta_e_cie2000(LabColor(*target_LAB), LabColor(*recon_LAB))
-        else:
-            delta_e = np.linalg.norm(target_LAB - recon_LAB)
+        # ΔE calculation
+        try:
+            delta_e = float(delta_e_cie2000(LabColor(*target), LabColor(*recon)))
+        except:
+            delta_e = float(np.linalg.norm(target - recon))
 
         delta_df = pd.DataFrame(
-            [np.abs(recon_LAB - target_LAB)],
+            [np.abs(recon - target)],
             columns=["ΔL", "Δa", "ΔB"]
         )
         delta_df["ΔE"] = delta_e
@@ -182,24 +185,27 @@ elif mode == "Inverse: LAB → Pigments + LAB + ΔE":
         st.markdown("#### 📏 LAB Difference + ΔE")
         st.dataframe(delta_df.style.format("{:.3f}"), use_container_width=True)
 
+        # Interpretation
         if delta_e < 1:
-            note = "🟢 Excellent color match (ΔE < 1 — visually identical)"
+            note = "🟢 Excellent color match (ΔE < 1)"
         elif delta_e < 3:
-            note = "🟡 Good match (ΔE < 3 — small visible difference)"
+            note = "🟡 Good match (ΔE < 3)"
         elif delta_e < 5:
-            note = "🟠 Acceptable (ΔE < 5 — noticeable but OK)"
+            note = "🟠 Acceptable (ΔE < 5)"
         else:
-            note = "🔴 Large difference (ΔE ≥ 5 — visually distinct)"
+            note = "🔴 Large difference (ΔE ≥ 5)"
 
         st.markdown(f"**Color difference interpretation:** {note}")
+
 
 # ===============================================================
 # 7️⃣ SIDEBAR INFO
 # ===============================================================
+
 st.sidebar.markdown("---")
 st.sidebar.info("""
 **App Features**
 - Forward Model → LAB prediction  
 - Inverse Model → Pigment + LAB + ΔE  
-- ΔE uses CIEDE2000 if available  
+- Uses CIEDE2000 (ΔE) when available  
 """)
