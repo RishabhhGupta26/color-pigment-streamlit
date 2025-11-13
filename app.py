@@ -22,9 +22,10 @@ except Exception:
 # ===============================================================
 # 1️⃣ PAGE CONFIGURATION
 # ===============================================================
+
 st.set_page_config(page_title="🎨 Color–Pigment Predictor", layout="wide", page_icon="🎨")
 st.title("🎨 Bidirectional Color–Pigment Prediction System")
-st.markdown("Use trained Random Forest models to convert between **Pigment → LAB** and **LAB → Pigment + LAB + ΔE**.")
+st.markdown("Use trained models to convert between **Pigment → LAB** and **LAB → Pigment + LAB + ΔE**.")
 
 # ===============================================================
 # 2️⃣ LOAD MODELS
@@ -163,6 +164,4 @@ st.sidebar.info("""
 - Forward Model → LAB prediction  
 - Inverse Model → Pigment + LAB + ΔE  
 - ΔE uses CIEDE2000 if available (fallback to Euclidean)  
-- Handles NumPy ≥ 1.24 (no 'asscalar' error)  
-- Models stored in 'trained_models' folder  
 """)
