@@ -21,53 +21,50 @@ except Exception:
 
 
 # ===============================================================
-# 🖼️ CLIENT LOGO + PAGE CONFIGURATION
+# 🖼️ CLEAN CLIENT LOGO (LEFT ALIGNED) + PAGE CONFIGURATION
 # ===============================================================
 
 st.set_page_config(page_title="🎨 Color–Pigment Predictor", layout="wide", page_icon="🎨")
-
-# --- Custom CSS for black header background ---
-st.markdown(
-    """
-    <style>
-        .logo-container {
-            background-color: #000000;
-            padding: 25px 0;
-            text-align: center;
-            width: 100%;
-        }
-        .logo-container img {
-            width: 220px;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
 
 # --- Convert image to base64 string ---
 def get_base64(logo_path):
     with open(logo_path, "rb") as img:
         return base64.b64encode(img.read()).decode()
 
-# --- Display the logo ---
-logo_path = "logo_off.png"
+# --- CSS for small left-aligned logo ---
+st.markdown("""
+    <style>
+        .header-container {
+            display: flex;
+            align-items: center;
+            padding: 10px 0 20px 0;
+        }
+        .header-container img {
+            width: 120px;  
+            margin-right: 15px;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- Display the transparent logo ---
+logo_path = "logo_transparent.png"   # UPDATED file name
 
 if os.path.exists(logo_path):
     logo_base64 = get_base64(logo_path)
     st.markdown(
         f"""
-        <div class="logo-container">
+        <div class="header-container">
             <img src="data:image/png;base64,{logo_base64}">
+            <h1 style="margin: 0; padding-top: 10px;">🎨 Bidirectional Color–Pigment Prediction System</h1>
         </div>
         """,
         unsafe_allow_html=True
     )
 else:
-    st.warning("⚠️ Logo file not found! Please add 'logo_off.png' in the same folder as app.py.")
+    st.title("🎨 Bidirectional Color–Pigment Prediction System")
+    st.warning("⚠️ logo_transparent.png not found! Please add it next to app.py.")
 
 
-# --- Page title & intro ---
-st.title("🎨 Bidirectional Color–Pigment Prediction System")
 st.markdown("Use trained models to convert between **Pigment → LAB** and **LAB → Pigment + LAB + ΔE**.")
 
 
@@ -137,23 +134,20 @@ elif mode == "Inverse: LAB → Pigments + LAB + ΔE":
     st.markdown("##### Enter Target LAB Values")
     col1, col2, col3 = st.columns(3)
     with col1:
-        L_val = st.number_input("L", min_value=0.0, max_value=100.0, value=50.0, step=0.1)
+        L_val = st.number_input("L", min_value=0.0, max_value=100.0, value=90.0, step=0.1)
     with col2:
-        a_val = st.number_input("a", min_value=-128.0, max_value=127.0, value=0.0, step=0.1)
+        a_val = st.number_input("a", min_value=-128.0, max_value=127.0, value=-0.60, step=0.1)
     with col3:
-        B_val = st.number_input("B", min_value=-128.0, max_value=127.0, value=0.0, step=0.1)
+        B_val = st.number_input("B", min_value=-128.0, max_value=127.0, value=1.5, step=0.1)
 
     if st.button("🎨 Predict Pigments + LAB + ΔE"):
-        # Step 1: Predict Pigments
         lab_input_df = pd.DataFrame([[L_val, a_val, B_val]], columns=lab_cols)
         predicted_pigments = inverse_model.predict(lab_input_df)
         pigment_df = pd.DataFrame(predicted_pigments, columns=pigment_columns)
 
-        # Step 2: Predict LAB back using forward model
         reconstructed_lab = forward_model.predict(pigment_df)
         reconstructed_lab_df = pd.DataFrame(reconstructed_lab, columns=lab_cols)
 
-        # Step 3: Compute ΔE
         target_LAB = lab_input_df.iloc[0].values
         recon_LAB = reconstructed_lab_df.iloc[0].values
 
@@ -174,12 +168,10 @@ elif mode == "Inverse: LAB → Pigments + LAB + ΔE":
         else:
             delta_e = np.linalg.norm(target_LAB - recon_LAB)
 
-        # Step 4: ΔLAB + ΔE table
         delta_components = np.abs(reconstructed_lab_df.values - lab_input_df.values)
         delta_df = pd.DataFrame(delta_components, columns=["ΔL", "Δa", "ΔB"])
         delta_df["ΔE"] = [delta_e]
 
-        # Display results
         st.markdown("#### 🎨 Predicted Pigment Composition")
         st.dataframe(pigment_df.style.format("{:.3f}"), use_container_width=True)
 
@@ -189,7 +181,6 @@ elif mode == "Inverse: LAB → Pigments + LAB + ΔE":
         st.markdown("#### 📏 LAB Difference + ΔE")
         st.dataframe(delta_df.style.format("{:.3f}"), use_container_width=True)
 
-        # ΔE Interpretation
         if delta_e < 1:
             note = "🟢 Excellent color match (ΔE < 1 — visually identical)"
         elif delta_e < 3:
