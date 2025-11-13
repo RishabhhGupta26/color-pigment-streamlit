@@ -21,52 +21,58 @@ except Exception:
 
 
 # ===============================================================
-# 🖼️ CLEAN CLIENT LOGO (LEFT ALIGNED) + PAGE CONFIGURATION
+# 🖼️ CLEAN HEADER WITH RIGHT-ALIGNED LOGO
 # ===============================================================
 
 st.set_page_config(page_title="🎨 Color–Pigment Predictor", layout="wide", page_icon="🎨")
 
-# --- Convert image to base64 string ---
-def get_base64(logo_path):
-    with open(logo_path, "rb") as img:
+# convert image to base64
+def get_base64(path):
+    with open(path, "rb") as img:
         return base64.b64encode(img.read()).decode()
 
-# --- CSS for small left-aligned logo ---
+logo_file = "logo_off.png"   # << YOUR BLACK LOGO
+
+# CSS to keep title on one line + move logo to right
 st.markdown("""
-    <style>
-        .header-container {
-            display: flex;
-            align-items: center;
-            padding: 10px 0 20px 0;
-        }
-        .header-container img {
-            width: 120px;  
-            margin-right: 15px;
-        }
-    </style>
+<style>
+.header-clean {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 5px 20px 5px;
+}
+.header-clean h1 {
+    font-size: 38px;
+    font-weight: 800;
+    margin: 0;
+    padding: 0;
+    white-space: nowrap;
+}
+.header-clean img {
+    width: 150px;
+    height: auto;
+}
+</style>
 """, unsafe_allow_html=True)
 
-# --- Display the transparent logo ---
-logo_path = "logo_transparent.png"   # UPDATED file name
-
-if os.path.exists(logo_path):
-    logo_base64 = get_base64(logo_path)
+# Header layout
+if os.path.exists(logo_file):
+    logo_base64 = get_base64(logo_file)
     st.markdown(
         f"""
-        <div class="header-container">
+        <div class="header-clean">
+            <h1>🎨 Bidirectional Color–Pigment Prediction System</h1>
             <img src="data:image/png;base64,{logo_base64}">
-            <h1 style="margin: 0; padding-top: 10px;">🎨 Bidirectional Color–Pigment Prediction System</h1>
         </div>
         """,
         unsafe_allow_html=True
     )
 else:
     st.title("🎨 Bidirectional Color–Pigment Prediction System")
-    st.warning("⚠️ logo_transparent.png not found! Please add it next to app.py.")
-
+    st.warning("⚠️ logo_off.png not found!")
 
 st.markdown("Use trained models to convert between **Pigment → LAB** and **LAB → Pigment + LAB + ΔE**.")
-
 
 # ===============================================================
 # 2️⃣ LOAD MODELS
@@ -82,7 +88,6 @@ forward_model = joblib.load(FORWARD_MODEL_PATH)
 inverse_model = joblib.load(INVERSE_MODEL_PATH)
 st.success("✅ Models loaded successfully!")
 
-
 # ===============================================================
 # 3️⃣ DEFINE COLUMNS
 # ===============================================================
@@ -92,16 +97,14 @@ pigment_columns = [
 ]
 lab_cols = ["L", "a", "B"]
 
-
 # ===============================================================
-# 4️⃣ SIDEBAR MODE
+# 4️⃣ SIDEBAR
 # ===============================================================
 st.sidebar.header("⚙️ Mode Selection")
 mode = st.sidebar.radio("Choose prediction mode:", ["Forward: Pigments → LAB", "Inverse: LAB → Pigments + LAB + ΔE"])
 
-
 # ===============================================================
-# 5️⃣ FORWARD MODEL MODE
+# 5️⃣ FORWARD MODEL
 # ===============================================================
 if mode == "Forward: Pigments → LAB":
     st.subheader("🎯 Forward Model — Predict LAB from Pigments")
@@ -124,21 +127,19 @@ if mode == "Forward: Pigments → LAB":
         lab_df = pd.DataFrame([prediction], columns=lab_cols)
         st.dataframe(lab_df.style.format("{:.3f}"), use_container_width=True)
 
-
 # ===============================================================
-# 6️⃣ INVERSE MODEL MODE + ΔE CALCULATION
+# 6️⃣ INVERSE MODEL
 # ===============================================================
 elif mode == "Inverse: LAB → Pigments + LAB + ΔE":
     st.subheader("🎯 Inverse Model — Predict Pigments from LAB and Validate via Forward Model")
 
-    st.markdown("##### Enter Target LAB Values")
     col1, col2, col3 = st.columns(3)
     with col1:
-        L_val = st.number_input("L", min_value=0.0, max_value=100.0, value=90.0, step=0.1)
+        L_val = st.number_input("L", 0.0, 100.0, 90.0)
     with col2:
-        a_val = st.number_input("a", min_value=-128.0, max_value=127.0, value=-0.60, step=0.1)
+        a_val = st.number_input("a", -128.0, 127.0, -0.60)
     with col3:
-        B_val = st.number_input("B", min_value=-128.0, max_value=127.0, value=1.5, step=0.1)
+        B_val = st.number_input("B", -128.0, 127.0, 1.5)
 
     if st.button("🎨 Predict Pigments + LAB + ΔE"):
         lab_input_df = pd.DataFrame([[L_val, a_val, B_val]], columns=lab_cols)
@@ -162,20 +163,20 @@ elif mode == "Inverse: LAB → Pigments + LAB + ΔE":
                 ])))
 
         if HAVE_CIE2000:
-            color1 = LabColor(*target_LAB)
-            color2 = LabColor(*recon_LAB)
-            delta_e = safe_delta_e_cie2000(color1, color2)
+            delta_e = safe_delta_e_cie2000(LabColor(*target_LAB), LabColor(*recon_LAB))
         else:
             delta_e = np.linalg.norm(target_LAB - recon_LAB)
 
-        delta_components = np.abs(reconstructed_lab_df.values - lab_input_df.values)
-        delta_df = pd.DataFrame(delta_components, columns=["ΔL", "Δa", "ΔB"])
-        delta_df["ΔE"] = [delta_e]
+        delta_df = pd.DataFrame(
+            [np.abs(recon_LAB - target_LAB)],
+            columns=["ΔL", "Δa", "ΔB"]
+        )
+        delta_df["ΔE"] = delta_e
 
         st.markdown("#### 🎨 Predicted Pigment Composition")
         st.dataframe(pigment_df.style.format("{:.3f}"), use_container_width=True)
 
-        st.markdown("#### 🔁 Reconstructed LAB (via Forward Model)")
+        st.markdown("#### 🔁 Reconstructed LAB")
         st.dataframe(reconstructed_lab_df.style.format("{:.3f}"), use_container_width=True)
 
         st.markdown("#### 📏 LAB Difference + ΔE")
@@ -192,7 +193,6 @@ elif mode == "Inverse: LAB → Pigments + LAB + ΔE":
 
         st.markdown(f"**Color difference interpretation:** {note}")
 
-
 # ===============================================================
 # 7️⃣ SIDEBAR INFO
 # ===============================================================
@@ -201,5 +201,5 @@ st.sidebar.info("""
 **App Features**
 - Forward Model → LAB prediction  
 - Inverse Model → Pigment + LAB + ΔE  
-- ΔE uses CIEDE2000 if available (fallback to Euclidean)  
+- ΔE uses CIEDE2000 if available  
 """)
