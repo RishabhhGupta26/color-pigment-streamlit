@@ -1,3 +1,34 @@
+# # ===============================================================
+# # 🎨 COLOR–PIGMENT STREAMLIT APP (FORWARD + INVERSE + ΔE CHECK)
+# # ===============================================================
+
+# import streamlit as st
+# import pandas as pd
+# import numpy as np
+# import joblib, os
+
+# # Handle numpy.asscalar deprecation (for colormath compatibility)
+# if not hasattr(np, "asscalar"):
+#     np.asscalar = lambda x: np.asarray(x).item()
+
+
+# # Try importing advanced color difference function
+# try:
+#     from colormath.color_objects import LabColor
+#     from colormath.color_diff import delta_e_cie2000
+#     HAVE_CIE2000 = True
+# except Exception:
+#     HAVE_CIE2000 = False
+
+# # ===============================================================
+# # 1️⃣ PAGE CONFIGURATION
+# # ===============================================================
+
+# st.set_page_config(page_title="🎨 Color–Pigment Predictor", layout="wide", page_icon="🎨")
+# st.title("🎨 Bidirectional Color–Pigment Prediction System")
+# st.markdown("Use trained models to convert between **Pigment → LAB** and **LAB → Pigment + LAB + ΔE**.")
+
+
 # ===============================================================
 # 🎨 COLOR–PIGMENT STREAMLIT APP (FORWARD + INVERSE + ΔE CHECK)
 # ===============================================================
@@ -19,13 +50,48 @@ try:
 except Exception:
     HAVE_CIE2000 = False
 
+
 # ===============================================================
-# 1️⃣ PAGE CONFIGURATION
+# 🖼️ CLIENT LOGO + PAGE CONFIGURATION
 # ===============================================================
 
 st.set_page_config(page_title="🎨 Color–Pigment Predictor", layout="wide", page_icon="🎨")
+
+# --- Custom CSS for black header background ---
+st.markdown(
+    """
+    <style>
+        .logo-container {
+            background-color: #000000;
+            padding: 20px 0;
+            text-align: center;
+        }
+        .logo-container img {
+            width: 220px;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# --- Display the logo ---
+logo_path = "logo_off.png"  # make sure this file is in the same folder as app.py
+if os.path.exists(logo_path):
+    st.markdown(
+        f"""
+        <div class="logo-container">
+            <img src="data:image/png;base64,{open(logo_path, "rb").read().encode('base64').decode()}">
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+else:
+    st.warning("⚠️ Logo file not found! Please add 'logo_off.png' in the same folder as app.py.")
+
+# --- Page title & intro ---
 st.title("🎨 Bidirectional Color–Pigment Prediction System")
 st.markdown("Use trained models to convert between **Pigment → LAB** and **LAB → Pigment + LAB + ΔE**.")
+
 
 # ===============================================================
 # 2️⃣ LOAD MODELS
